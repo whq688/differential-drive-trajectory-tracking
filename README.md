@@ -4,10 +4,10 @@ This project builds a small but complete control pipeline for a differential-dri
 
 ## Roadmap
 
-1. **Kinematic simulation** (current): model the robot and generate reference trajectories.
-2. PID trajectory tracking.
-3. LQR trajectory tracking and disturbance comparison.
-4. ROS 2 simulation integration.
+1. **Kinematic simulation**: model the robot and generate reference trajectories. ✅
+2. **P / PI / PID trajectory tracking** under a persistent speed bias. ✅
+3. **Time-varying LQR / LQI tracking** and controller comparison. ✅
+4. ROS 2 simulation integration. *(next)*
 
 ## Setup
 
@@ -19,7 +19,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Run the first simulation
+## Run the open-loop simulation
 
 ```powershell
 python -m src.simulate_open_loop
@@ -36,17 +36,22 @@ whose actual forward speed is only 85% of its commanded speed.
 python -m src.simulate_speed_bias
 python -m src.simulate_pi_speed_bias
 python -m src.simulate_pid_speed_bias
+python -m src.simulate_lqr_tracking
+python -m src.simulate_lqr_speed_bias
+python -m src.simulate_lqi_speed_bias
 python -m src.compare_controllers
 ```
 
-The comparison script writes `outputs/controller_comparison.png`.
+The final comparison script writes `outputs/controller_comparison.png`.
 
-With the current parameters, the final distance errors are:
+With the current parameters, the final distance errors under an 85% actual-speed
+actuator are:
 
 ```text
 P:   0.152 m
-PI:  0.015 m
 PID: 0.012 m
+LQR: 0.021 m
+LQI: 0.002 m
 ```
 
 ### What the experiments show
@@ -58,6 +63,27 @@ PID: 0.012 m
 - **PID control** also considers the error-change rate. Its derivative term is
   low-pass filtered because raw numerical derivatives are sensitive to rapid
   fluctuations.
+- **Time-varying LQR** linearizes the robot around the current reference pose
+  and computes a feedback gain from state and control-cost matrices. With a
+  persistent speed bias, ordinary LQR reduces but does not remove the
+  steady-state error because it has no error memory.
+- **LQI** augments LQR with the integral of the signed along-track error. It
+  maintains a speed correction that compensates for a constant actuator bias,
+  giving the smallest final error in this simulated scenario.
+
+## Controller-comparison scenario
+
+All four controllers use the same conditions:
+
+- Circular reference path: radius `2.0 m`, angular speed `0.35 rad/s`.
+- Initial robot pose: `(x, y, heading) = (2.5 m, -0.4 m, pi/2)`.
+- Discrete simulation step: `0.02 s`.
+- Persistent actuator bias: the robot receives only `85%` of the commanded
+  linear speed.
+
+This is a deliberately simple kinematic simulation. The LQI result shows the
+benefit of integral action for a constant bias; it does not mean LQI is always
+the best controller for every robot or disturbance.
 
 ## What the model represents
 
